@@ -11,6 +11,7 @@ from sklearn.metrics import (
     precision_score, recall_score, f1_score
 )
 from sklearn.pipeline import Pipeline
+from imblearn.over_sampling import SMOTE
 import xgboost as xgb
 
 INPUT_DIR  = 'data/labeled'
@@ -130,38 +131,35 @@ def train_logistic_regression(X_train, y_train):
 
 def train_xgboost(X_train, y_train):
     """
-    XGBoost model — our main model.
+    XGBoost model with SMOTE oversampling.
 
-    XGBoost can capture nonlinear feature interactions that Logistic
-    Regression misses. For example, a vol spike alone might be normal,
-    but a vol spike COMBINED with a price reversal AND a long upper wick
-    is much more suspicious. XGBoost learns these combinations.
+    Instead of just telling XGBoost to upweight pump examples via
+    scale_pos_weight, SMOTE actually generates synthetic pump examples
+    by interpolating between real ones. This gives the model more
+    diverse pump patterns to learn from, which should improve precision
+    without sacrificing recall.
 
-    scale_pos_weight handles class imbalance by telling XGBoost to weight
-    positive (pump) examples more heavily during training.
-    The standard value is: count(negatives) / count(positives).
+    Inspired by the credit card fraud detection literature (ULB dataset),
+    which faces the same class imbalance problem as ours.
     """
-    # calculate imbalance ratio for scale_pos_weight
-    neg = (y_train == 0).sum()
-    pos = (y_train == 1).sum()
-    scale = neg / pos if pos > 0 else 1.0
-    print(f"XGBoost scale_pos_weight: {scale:.1f} (neg/pos ratio)\n")
+    # apply SMOTE to training data only — never to test data
+    sm = SMOTE(random_state=42)
+    X_train_sm, y_train_sm = sm.fit_resample(X_train, y_train)
+
+    print(f"After SMOTE: {y_train_sm.sum()} pump examples (was {y_train.sum()})")
 
     model = xgb.XGBClassifier(
         n_estimators=300,
         max_depth=6,
         learning_rate=0.05,
-        scale_pos_weight=scale,
         subsample=0.8,
         colsample_bytree=0.8,
         eval_metric='logloss',
         random_state=42,
         verbosity=0
     )
-    model.fit(X_train, y_train)
+    model.fit(X_train_sm, y_train_sm)
     return model
-
-
 def print_feature_importance(model):
     """Prints XGBoost feature importances ranked highest to lowest."""
     importances = pd.Series(model.feature_importances_, index=FEATURE_COLS)

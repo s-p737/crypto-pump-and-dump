@@ -6,13 +6,51 @@ from datetime import datetime, timezone
 
 # coins we're pulling from Binance
 COINS = [
+    # original coins
     'XRP/USDT', 'DOGE/USDT', 'SHIB/USDT', 'LTC/USDT',
     'ADA/USDT', 'TRX/USDT', 'MATIC/USDT', 'DOT/USDT',
     'LINK/USDT', 'XLM/USDT', 'VET/USDT', 'ALGO/USDT',
     'SAND/USDT', 'MANA/USDT', 'CHZ/USDT', 'HOT/USDT',
-    'ANKR/USDT', 'COTI/USDT'
-]
+    'ANKR/USDT', 'COTI/USDT',
 
+    # batch 2
+    'FUN/USDT', 'RLC/USDT', 'MTL/USDT', 'GTO/USDT',
+    'QSP/USDT', 'BLZ/USDT', 'CND/USDT', 'POA/USDT',
+    'STORM/USDT', 'TNT/USDT', 'OST/USDT', 'AST/USDT',
+    'SNM/USDT', 'LEND/USDT', 'VIBE/USDT', 'WABI/USDT',
+    'GVT/USDT', 'INS/USDT', 'PIVX/USDT', 'STEEM/USDT',
+    'NPXS/USDT', 'KEY/USDT', 'NAS/USDT', 'HC/USDT',
+    'GO/USDT', 'APPC/USDT', 'DOCK/USDT', 'OAX/USDT',
+
+    # batch 3
+    'ZRX/USDT', 'ENJ/USDT', 'ICX/USDT', 'ONT/USDT',
+    'ZIL/USDT', 'IOST/USDT', 'CELR/USDT', 'REEF/USDT',
+    'SLP/USDT', 'ALICE/USDT', 'TLM/USDT', 'CTSI/USDT',
+    'AUDIO/USDT', 'FLOW/USDT', 'SKL/USDT', 'POND/USDT',
+    'RVN/USDT', 'DGB/USDT', 'QTUM/USDT', 'ONE/USDT',
+    'ROSE/USDT', 'DUSK/USDT', 'GLMR/USDT', 'KAVA/USDT',
+    'KSM/USDT', 'BAND/USDT', 'LRC/USDT', 'OGN/USDT',
+    'NMR/USDT', 'GTC/USDT', 'REQ/USDT', 'GLM/USDT',
+
+    # batch 4 - everything else confirmed on Binance.US
+    'AAVE/USDT', 'UNI/USDT', 'SUSHI/USDT', 'SNX/USDT',
+    'CRV/USDT', 'BAT/USDT', 'ZEC/USDT', 'DASH/USDT',
+    'ICX/USDT', 'STORJ/USDT', 'SKY/USDT', 'COMP/USDT',
+    'MKR/USDT', 'YFI/USDT', 'BNT/USDT', 'BAL/USDT',
+    'ATOM/USDT', 'NEAR/USDT', 'FIL/USDT', 'THETA/USDT',
+    'TFUEL/USDT', 'HBAR/USDT', 'EGLD/USDT', 'NEO/USDT',
+    'XTZ/USDT', 'ETC/USDT', 'BCH/USDT', 'IOTA/USDT',
+    'ONT/USDT', 'QTUM/USDT', 'ZEN/USDT', 'LAZIO/USDT',
+    'PORTO/USDT', 'SANTOS/USDT', 'ALPINE/USDT', 'APE/USDT',
+    'IMX/USDT', 'MASK/USDT', 'GALA/USDT', 'ENS/USDT',
+    'LPT/USDT', 'OCEAN/USDT', 'FLUX/USDT', 'RVN/USDT',
+    'XNO/USDT', 'WAXP/USDT', 'ORBS/USDT', 'DIA/USDT',
+    'BICO/USDT', 'API3/USDT', 'FORTH/USDT', 'ACH/USDT',
+    'TWT/USDT', 'CAKE/USDT', 'SUI/USDT', 'APT/USDT',
+    'ARB/USDT', 'OP/USDT', 'INJ/USDT', 'SEI/USDT',
+    'TIA/USDT', 'JUP/USDT', 'JTO/USDT', 'RENDER/USDT',
+    'WIF/USDT', 'BONK/USDT', 'PEPE/USDT', 'FLOKI/USDT',
+]
 # where the csv's will be saved
 OUTPUT_DIR = 'data/raw'
 os.makedirs(OUTPUT_DIR, exist_ok=True)
