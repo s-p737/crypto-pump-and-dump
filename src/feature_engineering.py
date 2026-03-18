@@ -1,3 +1,12 @@
+# feature_engineering.py
+# CS229 Final Project — Detecting Pump-and-Dump Schemes in Cryptocurrency Markets
+# Stuti Patel (snpatel7) & Meghan D'Souza (megands)
+#
+# Computes pump-and-dump signal features from raw OHLCV candle data.
+#
+# Input:  data/raw/*.csv         (1h candles fetched from exchange APIs)
+# Output: data/features/*.csv    (feature-engineered candles for label_data.py)
+
 import pandas as pd
 import numpy as np
 import os
@@ -8,11 +17,9 @@ OUTPUT_DIR = 'data/features'
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
+# computes pump-and-dump signal features from raw OHLCV data
+# all rolling calculations are done on a per-coin basis
 def engineer_features(df):
-    """
-    Computes pump-and-dump signal features from raw OHLCV data.
-    All rolling calculations are done on a per-coin basis.
-    """
     df = df.copy().sort_values('timestamp').reset_index(drop=True)
 
     # ── Log returns (used for volatility) ────────────────────────────────────
@@ -27,7 +34,7 @@ def engineer_features(df):
     df['vol_spike_ratio'] = df['volume'] / (rolling_vol_mean + 1e-9)
 
     # ── Price reversal: how far close fell from the candle's high ─────────────
-    # High value = price pumped up but dumped before candle closed
+    # high value = price pumped up but dumped before candle closed
     df['price_reversal_pct'] = ((df['high'] - df['close']) / (df['high'] + 1e-9)) * 100
 
     # ── Volatility: rolling std of log returns ────────────────────────────────

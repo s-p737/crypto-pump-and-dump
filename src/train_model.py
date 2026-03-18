@@ -1,3 +1,15 @@
+# train_model.py
+# CS229 Final Project — Detecting Pump-and-Dump Schemes in Cryptocurrency Markets
+# Stuti Patel (snpatel7) & Meghan D'Souza (megands)
+#
+# Trains three models on labeled OHLCV candle data:
+#   1. Logistic Regression (from scratch using gradient descent)
+#   2. Random Forest (from scratch using bootstrap sampling + Gini impurity)
+#   3. XGBoost (library, with SMOTE oversampling)
+#
+# Input:  data/labeled/*.csv  (output of label_data.py)
+# Output: models/*.pkl        (saved models for evaluate.py)
+
 import pandas as pd
 import numpy as np
 import os
@@ -17,6 +29,9 @@ INPUT_DIR  = 'data/labeled'
 MODEL_DIR  = 'models'
 os.makedirs(MODEL_DIR, exist_ok=True)
 
+# these are all backward-looking features — only use info available at the time
+# of the candle so there's no data leakage into the future
+# we explicitly exclude future_return_6h which was only used for labeling
 FEATURE_COLS = [
     'price_change_1h', 'price_change_6h', 'price_change_24h',
     'vol_spike_ratio', 'price_reversal_pct', 'hl_spread_pct',
@@ -26,6 +41,8 @@ TARGET_COL = 'is_pump'
 
 
 def load_all_coins():
+    # load every labeled coin CSV and stack them into one big dataframe
+    # sorting by timestamp makes sure the train/test split respects time order
     csv_files = glob.glob(os.path.join(INPUT_DIR, '*.csv'))
     if not csv_files:
         raise FileNotFoundError(f"No labeled CSVs found in '{INPUT_DIR}'.")
@@ -43,6 +60,8 @@ def load_all_coins():
 
 
 def split_data(data):
+    # split 80/20 by time, not randomly — random split would let the model
+    # see future candles during training which would be data leakage
     data = data.dropna(subset=FEATURE_COLS + [TARGET_COL])
     split_idx = int(len(data) * 0.8)
     train = data.iloc[:split_idx]
@@ -55,6 +74,8 @@ def split_data(data):
 
 
 def evaluate(name, y_true, y_pred, y_proba, split='Test'):
+    # not using accuracy because 99.9% of candles are normal so it's misleading
+    # focusing on pump-specific precision, recall, F1, and ROC-AUC instead
     print(f"{'='*50}")
     print(f"  {name} [{split}]")
     print(f"{'='*50}")
@@ -66,10 +87,8 @@ def evaluate(name, y_true, y_pred, y_proba, split='Test'):
 
 
 def evaluate_train(name, model, X_train, y_train, use_values=False):
-    """
-    Evaluates model on training set to check for overfitting.
-    If train performance >> test performance, the model has overfit.
-    """
+    # comparing train vs test performance to check for overfitting
+    # if train numbers are much better than test, the model overfit
     print(f"--- {name} Train Performance ---")
     X = X_train.values if use_values else X_train
     y = y_train.values if use_values else y_train
@@ -82,37 +101,62 @@ def evaluate_train(name, model, X_train, y_train, use_values=False):
 
 
 def train_logistic_regression(X_train, y_train):
+    # implemented from scratch using gradient descent instead of sklearn
+    # class_weight='balanced' so the model doesn't just predict normal for everything
+    # learning rate 0.1 and 1000 iterations — loss largely converges by ~500
     model = LogisticRegressionScratch(
-        learning_rate=0.1, n_iterations=1000,
-        random_state=42, class_weight='balanced'
+        learning_rate=0.1,
+        n_iterations=1000,
+        random_state=42,
+        class_weight='balanced'
     )
     model.fit(X_train.values, y_train.values)
     return model
 
 
 def train_random_forest(X_train, y_train):
+    # implemented from scratch — each tree trains on a bootstrap sample
+    # and considers a random subset of features at each split (sqrt of total)
+    # this reduces correlation between trees and prevents overfitting
+    # 100 trees instead of 300 because the scratch implementation is slower
     model = RandomForestScratch(
-        n_estimators=100, max_depth=10,
-        min_samples_split=5, random_state=42
+        n_estimators=100,
+        max_depth=10,
+        min_samples_split=5,
+        random_state=42
     )
     model.fit(X_train.values, y_train.values)
     return model
 
 
 def train_xgboost(X_train, y_train):
+    # applying SMOTE before fitting to generate synthetic pump examples
+    # this is inspired by the credit card fraud detection literature which
+    # has the same class imbalance problem — rare fraud events in normal data
     sm = SMOTE(random_state=42)
     X_train_sm, y_train_sm = sm.fit_resample(X_train, y_train)
     print(f"After SMOTE: {y_train_sm.sum()} pump examples (was {y_train.sum()})")
+
+    # hyperparameters set based on XGBoost defaults for imbalanced classification
+    # subsample=0.8 and colsample_bytree=0.8 add stochasticity to reduce
+    # overfitting on the dominant price_change_6h feature
     model = xgb.XGBClassifier(
-        n_estimators=300, max_depth=6, learning_rate=0.05,
-        subsample=0.8, colsample_bytree=0.8,
-        eval_metric='logloss', random_state=42, verbosity=0
+        n_estimators=300,
+        max_depth=6,
+        learning_rate=0.05,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        eval_metric='logloss',
+        random_state=42,
+        verbosity=0
     )
     model.fit(X_train_sm, y_train_sm)
     return model
 
 
 def print_feature_importance(model):
+    # printing this to see which features the model actually uses
+    # price_change_6h dominates because it's directly in the labeling rule
     importances = pd.Series(model.feature_importances_, index=FEATURE_COLS)
     importances = importances.sort_values(ascending=False)
     print("XGBoost Feature Importances:")
@@ -123,10 +167,11 @@ def print_feature_importance(model):
 
 
 def main():
+    # load all labeled data and split chronologically
     data = load_all_coins()
     X_train, X_test, y_train, y_test = split_data(data)
 
-    # ── Logistic Regression ───────────────────────────────────────────────────
+    # Logistic Regression 
     print("Training Logistic Regression...")
     lr_model = train_logistic_regression(X_train, y_train)
     evaluate_train("Logistic Regression", lr_model, X_train, y_train, use_values=True)
@@ -134,16 +179,17 @@ def main():
     lr_proba = lr_model.predict_proba(X_test.values)[:, 1]
     evaluate("Logistic Regression", y_test, lr_pred, lr_proba)
 
-    # ── Random Forest ─────────────────────────────────────────────────────────
+    # Random Forest 
     print("Training Random Forest (from scratch)...")
     rf_model = train_random_forest(X_train, y_train)
     evaluate_train("Random Forest", rf_model, X_train, y_train, use_values=True)
     rf_pred  = rf_model.predict(X_test.values)
     rf_proba = rf_model.predict_proba(X_test.values)[:, 1]
     evaluate("Random Forest", y_test, rf_pred, rf_proba)
+    # saving so evaluate.py can load it without retraining
     joblib.dump(rf_model, os.path.join(MODEL_DIR, 'random_forest.pkl'))
 
-    # ── XGBoost ───────────────────────────────────────────────────────────────
+    # XGBoost 
     print("Training XGBoost...")
     xgb_model = train_xgboost(X_train, y_train)
     evaluate_train("XGBoost", xgb_model, X_train, y_train, use_values=False)
@@ -151,10 +197,11 @@ def main():
     xgb_proba = xgb_model.predict_proba(X_test)[:, 1]
     evaluate("XGBoost", y_test, xgb_pred, xgb_proba)
 
-    # ── Feature importances ───────────────────────────────────────────────────
+    # Feature importances 
     print_feature_importance(xgb_model)
 
-    # ── Save models ───────────────────────────────────────────────────────────
+    # Save models 
+    # saving as pkl files so evaluate.py can load them without retraining
     joblib.dump(lr_model,  os.path.join(MODEL_DIR, 'logistic_regression.pkl'))
     joblib.dump(xgb_model, os.path.join(MODEL_DIR, 'xgboost.pkl'))
     print("Models saved to models/")

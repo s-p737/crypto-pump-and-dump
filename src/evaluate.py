@@ -1,3 +1,16 @@
+# evaluate.py
+# CS229 Final Project — Detecting Pump-and-Dump Schemes in Cryptocurrency Markets
+# Stuti Patel (snpatel7) & Meghan D'Souza (megands)
+#
+# Loads saved models and generates evaluation plots:
+#   1. ROC curves (Logistic Regression vs XGBoost)
+#   2. Confusion matrix (XGBoost)
+#   3. PCA visualization (pump vs normal candles)
+#   4. Performance breakdown by coin liquidity tier
+#
+# Input:  data/labeled/*.csv, models/*.pkl   (output of label_data.py + train_model.py)
+# Output: outputs/*.png                      (figures for the final report)
+
 import pandas as pd
 import numpy as np
 import os
@@ -34,8 +47,8 @@ MEDIUM_CAP = {'SAND', 'MANA', 'CHZ', 'VET', 'ANKR', 'COTI', 'SUSHI', 'UNI',
               'AAVE', 'SNX', 'CRV', 'ATOM', 'NEAR', 'FIL', 'THETA'}
 
 
+# assigns a liquidity tier label to a coin
 def get_tier(coin):
-    """Assigns a liquidity tier label to a coin."""
     if coin in LARGE_CAP:
         return 'large_cap'
     elif coin in MEDIUM_CAP:
@@ -44,8 +57,8 @@ def get_tier(coin):
         return 'small_cap'
 
 
+# loads all labeled CSVs, adds coin and tier columns, sorts by time
 def load_data():
-    """Loads all labeled CSVs, adds coin and tier columns, sorts by time."""
     csv_files = glob.glob(os.path.join(INPUT_DIR, '*.csv'))
     dfs = []
     for filepath in csv_files:
@@ -61,8 +74,10 @@ def load_data():
     return data
 
 
+# returns the same 20% chronological test split used in training
+# keeping this consistent is critical — a different split would make
+# evaluation numbers incomparable to the training run
 def get_test_set(data):
-    """Returns the same 20% chronological test split used in training."""
     split_idx = int(len(data) * 0.8)
     return data.iloc[split_idx:]
 
@@ -99,12 +114,10 @@ def plot_confusion_matrix(y_test, xgb_pred):
 
 
 # ── Plot 3: PCA visualization ──────────────────────────────────────────────────
+# reduces 9 features to 2 principal components and plots pump vs normal
+# if pump events form a distinct cluster, it validates that our features
+# capture meaningful signal and that the classes are geometrically separable
 def plot_pca(data):
-    """
-    Reduces 9 features to 2 principal components and plots pump vs normal.
-    If pump events form a distinct cluster, it validates that our features
-    capture meaningful signal and that the classes are geometrically separable.
-    """
     X = data[FEATURE_COLS]
     y = data[TARGET_COL]
 
@@ -120,7 +133,7 @@ def plot_pca(data):
 
     fig, ax = plt.subplots(figsize=(10, 7))
 
-    # plot normal candles (subsample so plot isn't overwhelmed)
+    # subsample normal candles so the plot isn't overwhelmed by the majority class
     normal = pca_df[pca_df['is_pump'] == 0].sample(5000, random_state=42)
     pumps  = pca_df[pca_df['is_pump'] == 1]
 
@@ -147,15 +160,14 @@ def plot_pca(data):
 
 
 # ── Plot 4: Performance by liquidity tier ─────────────────────────────────────
+# breaks down XGBoost performance by coin liquidity tier
+# tests the hypothesis that pump detection is easier on smaller, less liquid coins
 def plot_tier_performance(test_data, xgb_model):
-    """
-    Breaks down XGBoost performance by coin liquidity tier.
-    Tests the hypothesis that pump detection is easier on smaller coins.
-    """
     results = []
 
     for tier in ['large_cap', 'medium_cap', 'small_cap']:
         tier_data = test_data[test_data['tier'] == tier]
+        # skip tiers with no pump events — metrics would be undefined
         if tier_data[TARGET_COL].sum() == 0:
             continue
 
@@ -178,7 +190,7 @@ def plot_tier_performance(test_data, xgb_model):
     print("\nPerformance by Liquidity Tier:")
     print(results_df.to_string(index=False))
 
-    # bar chart
+    # bar chart: three metrics side by side for each tier
     fig, ax = plt.subplots(figsize=(8, 5))
     x     = np.arange(len(results_df))
     width = 0.25

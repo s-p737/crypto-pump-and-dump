@@ -1,3 +1,14 @@
+# collect_data.py
+# CS229 Final Project — Detecting Pump-and-Dump Schemes in Cryptocurrency Markets
+# Stuti Patel (snpatel7) & Meghan D'Souza (megands)
+#
+# Fetches 12 months of hourly OHLCV candle data from Binance.US for all coins.
+# Binance limits responses to 1000 candles per request, so we loop per coin
+# until we've pulled all candles from 1 year ago to the present.
+#
+# Input:  COINS list below
+# Output: data/raw/<COIN>_USDT_1h.csv   (one file per coin)
+
 import ccxt
 import pandas as pd
 import time
@@ -51,21 +62,19 @@ COINS = [
     'TIA/USDT', 'JUP/USDT', 'JTO/USDT', 'RENDER/USDT',
     'WIF/USDT', 'BONK/USDT', 'PEPE/USDT', 'FLOKI/USDT',
 ]
+
 # where the csv's will be saved
 OUTPUT_DIR = 'data/raw'
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
+# fetches 12 months of hourly OHLCV data for a single coin
+# OHLCV = Open, High, Low, Close, Volume — one row per hour
+# Binance only returns 1000 candles per request, so we loop
+# and keep fetching the next batch until we reach today
 def fetch_ohlcv(exchange, symbol, timeframe='1h'):
-    """
-    Fetches 12 months of hourly OHLCV data for a single coin.
-    OHLCV = Open, High, Low, Close, Volume — one row per hour.
-    
-    Binance only returns 1000 candles per request, so we loop
-    and keep fetching the next batch until we reach today.
-    """
-    
-    # calculate the timestamp for exactly 1 year ago 
+
+    # calculate the timestamp for exactly 1 year ago
     since_ms = exchange.parse8601(
         datetime(datetime.now().year - 1,
                  datetime.now().month,
@@ -74,8 +83,8 @@ def fetch_ohlcv(exchange, symbol, timeframe='1h'):
     )
 
     all_candles = []
-    
-    # keep fetching until we reach the present 
+
+    # keep fetching until we reach the present
     while True:
         try:
             candles = exchange.fetch_ohlcv(
@@ -83,17 +92,16 @@ def fetch_ohlcv(exchange, symbol, timeframe='1h'):
                 since=since_ms, limit=1000
             )
         except Exception as e:
-            # if the API call fails, skip this coin
+            # if the API call fails, skip this coin rather than crash the whole run
             print(f"  Error fetching {symbol}: {e}")
             break
-        
+
         # if no candles returned, we've reached the end of available data
         if not candles:
             break
 
-        
         all_candles.extend(candles)
-        
+
         # timestamp of the last candle in this batch (in milliseconds)
         last_ts = candles[-1][0]
 
@@ -111,12 +119,13 @@ def fetch_ohlcv(exchange, symbol, timeframe='1h'):
     df = pd.DataFrame(all_candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
     df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms', utc=True)
     df.drop_duplicates(subset='timestamp', inplace=True)
-    df.sort_values('timestamp', inplace=True) # make sure data is sorted oldest → newest
+    df.sort_values('timestamp', inplace=True)   # oldest → newest
     df.reset_index(drop=True, inplace=True)
     return df
 
+
 def main():
-    # connect to Binance.US (used instead of Binance because Binance blocks US users)
+    # connect to Binance.US — used instead of Binance because Binance blocks US IPs
     # enableRateLimit=True tells ccxt to automatically pause between requests
     exchange = ccxt.binanceus({'enableRateLimit': True})
 
@@ -124,6 +133,7 @@ def main():
         coin_name = symbol.replace('/', '_')
         filepath = os.path.join(OUTPUT_DIR, f'{coin_name}_1h.csv')
 
+        # skip coins we've already fetched — lets the script resume safely after a crash
         if os.path.exists(filepath):
             print(f"Already exists, skipping: {filepath}")
             continue
@@ -139,6 +149,6 @@ def main():
         print(f"  Saved {len(df)} rows → {filepath}")
         time.sleep(1)
 
+
 if __name__ == '__main__':
     main()
-

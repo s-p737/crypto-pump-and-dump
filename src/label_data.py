@@ -25,24 +25,11 @@ PRICE_DOWN_THRESHOLD = 0.05   # price must then fall   >= 10% over next 6 candle
 VOLUME_SPIKE_RATIO   = 2.0    # volume must be         >= 3x the 24h rolling mean
 
 
+# adds an 'is_pump' column to a feature-engineered dataframe
+# uses price_change_6h (backward) + future_return_6h (forward) + vol_spike_ratio
+# note: future_return_6h is ONLY used for labeling — it's forward-looking and
+# must be dropped before training since we wouldn't know future prices in production
 def label_pumps(df):
-    """
-    Adds an 'is_pump' column to a feature-engineered dataframe.
-
-    Strategy:
-      - We already have 'price_change_6h' from feature engineering,
-        which captures the backward-looking price rise.
-      - We compute 'future_return_6h' here as a forward-looking feature:
-        how much did the price drop in the 6 hours AFTER this candle?
-        This captures the 'dump' phase.
-      - We use 'vol_spike_ratio' from feature engineering to check
-        if volume was abnormally high (sign of coordinated buying).
-
-    Note: future_return_6h is ONLY used for labeling — it's a forward-looking
-    feature and must be dropped before training the model, since in real-world
-    prediction you wouldn't know future prices.
-    """
-
     df = df.copy().sort_values('timestamp').reset_index(drop=True)
 
     # ── Forward-looking return: % price change over the NEXT 6 candles ───────
@@ -68,8 +55,8 @@ def label_pumps(df):
     return df
 
 
+# prints a quick summary of pump labels for a given coin
 def summarize(df, coin):
-    """Prints a quick summary of pump labels for a given coin."""
     total  = len(df)
     pumps  = df['is_pump'].sum()
     rate   = pumps / total * 100
